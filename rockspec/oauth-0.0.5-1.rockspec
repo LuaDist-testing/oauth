@@ -1,17 +1,9 @@
--- This file was automatically generated for the LuaDist project.
-
-package = "oauth"
-version = "0.0.4-1"
--- LuaDist source
+package = "OAuth"
+version = "0.0.5-1"
 source = {
-  tag = "0.0.4-1",
-  url = "git://github.com/LuaDist-testing/oauth.git"
+	url = "https://github.com/ignacio/LuaOAuth/archive/0.0.5-1.tar.gz",
+	dir = "LuaOAuth-0.0.5-1"
 }
--- Original source
--- source = {
--- 	url = "https://github.com/ignacio/LuaOAuth/archive/0.0.4-1.tar.gz",
--- 	dir = "LuaOAuth-0.0.4-1"
--- }
 description = {
 	summary = "Lua OAuth, an OAuth client library.",
 	detailed = [[
@@ -21,7 +13,7 @@ description = {
 	homepage = "http://github.com/ignacio/LuaOAuth"
 }
 dependencies = {
-	"lua >= 5.1",
+	"lua ~> 5.1",
 	"luasocket",
 	"luasec",
 	"luacrypto",
@@ -31,6 +23,7 @@ dependencies = {
 external_dependencies = {
 
 }
+
 build = {
 	type = "builtin",
 	modules = {
