@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "oauth"
-version = "0.0.3-1"
+version = "0.0.4-1"
 -- LuaDist source
 source = {
-  tag = "0.0.3-1",
+  tag = "0.0.4-1",
   url = "git://github.com/LuaDist-testing/oauth.git"
 }
 -- Original source
 -- source = {
--- 	url = "git://github.com/ignacio/LuaOAuth.git",
--- 	branch = "v0.0.3"
+-- 	url = "https://github.com/ignacio/LuaOAuth/archive/0.0.4-1.tar.gz",
+-- 	dir = "LuaOAuth-0.0.4-1"
 -- }
 description = {
 	summary = "Lua OAuth, an OAuth client library.",

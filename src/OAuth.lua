@@ -2,14 +2,17 @@ local Base64 = require "base64"
 local Crypto
 local core
 local isLuaNode
+local unescape
 
 if process then
 	Crypto = require "luanode.crypto"
 	core = require "OAuth.coreLuaNode"
+	unescape = require "luanode.querystring".url_decode
 	isLuaNode = true
 else
 	Crypto = require "crypto"
 	core = require "OAuth.coreLuaSocket"
+	unescape = require "socket.url".unescape
 	isLuaNode = false
 end
 
@@ -102,7 +105,7 @@ function Sign(self, httpMethod, baseUri, arguments, oauth_token_secret, authReal
 	for key, val in pairs(arguments) do
 		table.insert(keys_and_values, {
 						key = oauth_encode(key),
-						val = oauth_encode(val)
+						val = oauth_encode(tostring(val))
 					})
 	end
 	
@@ -196,7 +199,7 @@ end
 
 
 
--- 
+--- 
 -- Requests an Unauthorized Request Token (http://tools.ietf.org/html/rfc5849#section-2.1)
 -- @param arguments is an optional table with whose keys and values will be encoded as "application/x-www-form-urlencoded" 
 --  (when doing a POST) or encoded and sent in the query string (when doing a GET).
@@ -206,6 +209,7 @@ end
 --   of an error. The callback is mandatory when running under LuaNode.
 -- @return nothing if running under LuaNode (the callback will be called instead). Else it will return a 
 --   table containing the returned values from the server if succesfull or throws an error otherwise.
+--
 function RequestToken(self, arguments, headers, callback)
 
 	if type(arguments) == "function" then
@@ -248,7 +252,8 @@ function RequestToken(self, arguments, headers, callback)
 		local values = {}
 		for key, value in string.gmatch(response_body, "([^&=]+)=([^&=]*)&?" ) do
 			--print( ("key=%s, value=%s"):format(key, value) )
-			values[key] = value
+			-- The response parameters are url-encodeded per RFC 5849 so we need to decode them
+			values[key] = unescape(value)
 		end
 	
 		self.m_oauth_token_secret = values.oauth_token_secret
@@ -261,21 +266,26 @@ function RequestToken(self, arguments, headers, callback)
 		local oauth_instance = self
 		
 		PerformRequestHelper(self, endpoint.url, endpoint.method, headers, arguments, post_body, 
-			function(ok, response_code, response_headers, response_status_line, response_body)
-				if not ok or response_code ~= 200 then
+			function(err, response_code, response_headers, response_status_line, response_body)
+				if err then
+					callback(err)
+					return
+				end
+				if response_code ~= 200 then
 					-- can't do much, the responses are not standard
-					callback(nil, response_code, response_headers, response_status_line, response_body)
+					callback({ status = response_code, headers = response_headers, status_line = response_status_line, body = response_body})
+					return
 				end
 				local values = {}
 				for key, value in string.gmatch(response_body, "([^&=]+)=([^&=]*)&?" ) do
 					--print( ("key=%s, value=%s"):format(key, value) )
-					values[key] = value
+					values[key] = unescape(value)
 				end
 		
 				oauth_instance.m_oauth_token_secret = values.oauth_token_secret
 				oauth_instance.m_oauth_token = values.oauth_token
 
-				callback(values)
+				callback(nil, values)
 			end)
 	end
 end
@@ -283,23 +293,31 @@ end
 -- 
 -- Requests Authorization from the User (http://tools.ietf.org/html/rfc5849#section-2.2)
 -- Builds the URL used to issue a request to the Service Provider's User Authorization URL
--- @param arguments is an optional table with whose keys and values will be encoded as "application/x-www-form-urlencoded" 
---  (when doing a POST) or encoded and sent in the query string (when doing a GET).
--- @return the fully constructed URL, with both OAuth and custom parameters encoded, and the value of the 'Authorization' header
+-- @param arguments is an optional table whose keys and values will be encoded and sent in the query string.
+-- @return the fully constructed URL, with oauth_token and custom parameters encoded.
 function BuildAuthorizationUrl(self, arguments)
-	local args = {
-		oauth_consumer_key = self.m_consumer_key,
-		oauth_nonce = generate_nonce(),
-		oauth_signature_method = self.m_signature_method,
-		oauth_timestamp = generate_timestamp(),
-		oauth_version = "1.0",
-	}
+	local args = { }
 	args = merge(args, arguments)
 	args.oauth_token = (arguments and arguments.oauth_token) or self.m_oauth_token or error("no oauth_token")
-	
+
+	-- oauth-encode each key and value
+	local keys_and_values = { }
+	for key, val in pairs(args) do
+		table.insert(keys_and_values, {
+						key = oauth_encode(key),
+						val = oauth_encode(tostring(val))
+					})
+	end
+
+	-- Now combine key and value into key=value
+	local key_value_pairs = { }
+	for _, rec in pairs(keys_and_values) do
+		table.insert(key_value_pairs, rec.key .. "=" .. rec.val)
+	end
+	local query_string = table.concat(key_value_pairs, "&")
+
 	local endpoint = self.m_endpoints.AuthorizeUser
-	local oauth_signature, post_body, authHeader = self:Sign(endpoint.method, endpoint.url, args)
-	return endpoint.url .. "?" .. post_body, authHeader
+	return endpoint.url .. "?" .. query_string
 end
 
 --[=[ This seems to be unnecesary
@@ -401,7 +419,7 @@ function GetAccessToken(self, arguments, headers, callback)
 		local values = {}
 		for key, value in string.gmatch(response_body, "([^&=]+)=([^&=]*)&?" ) do
 			--print( ("key=%s, value=%s"):format(key, value) )
-			values[key] = value
+			values[key] = unescape(value)
 		end
 		self.m_oauth_token_secret = values.oauth_token_secret
 		self.m_oauth_token = values.oauth_token
@@ -413,22 +431,28 @@ function GetAccessToken(self, arguments, headers, callback)
 		local oauth_instance = self
 		
 		PerformRequestHelper(self, endpoint.url, endpoint.method, headers, arguments, post_body, 
-			function(ok, response_code, response_headers, response_status_line, response_body)
+			function(err, response_code, response_headers, response_status_line, response_body)
 				
-				if not ok or response_code ~= 200 then
+				if err then
+					callback(err)
+					return
+				end
+				
+				if response_code ~= 200 then
 					-- can't do much, the responses are not standard
-					callback(nil, response_code, response_headers, response_status_line, response_body)
+					callback({ status = response_code, headers = response_headers, status_line = response_status_line, body = response_body})
+					return
 				end
 				local values = {}
 				for key, value in string.gmatch(response_body, "([^&=]+)=([^&=]*)&?" ) do
 					--print( ("key=%s, value=%s"):format(key, value) )
-					values[key] = value
+					values[key] = unescape(value)
 				end
 		
 				oauth_instance.m_oauth_token_secret = values.oauth_token_secret
 				oauth_instance.m_oauth_token = values.oauth_token
 
-				callback(values)
+				callback(nil, values)
 			end)
 	end
 end
@@ -442,9 +466,10 @@ end
 -- @param arguments is an optional table whose keys and values will be encoded as "application/x-www-form-urlencoded" 
 --   (when doing a POST) or encoded and sent in the query string (when doing a GET).
 -- @param headers is an optional table with http headers to be sent in the request
--- @param callback is only required if running under LuaNode. It is a function to be called with the result of the request.
+-- @param callback is only required if running under LuaNode. It is a function to be called with an (optional) error object and the result of the request.
 -- @return nothing if running under Luanode (the callback will be called instead). Else, the http status code 
 --   (a number), a table with the response headers, the status line and the response itself.
+--
 function PerformRequest(self, method, url, arguments, headers, callback)
 	assert(type(method) == "string", "'method' must be a string")
 	method = method:upper()
@@ -468,10 +493,7 @@ function PerformRequest(self, method, url, arguments, headers, callback)
 		return response_code, response_headers, response_status_line, response_body
 	
 	else
-		PerformRequestHelper(self, url, method, headers, arguments, post_body, 
-			function(ok, response_code, response_headers, response_status_line, response_body)
-				callback(response_code, response_headers, response_status_line, response_body)
-			end)
+		PerformRequestHelper(self, url, method, headers, arguments, post_body, callback)
 	end
 end
 
