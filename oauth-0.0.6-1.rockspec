@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "oauth"
-version = "0.0.5-1"
+version = "0.0.6-1"
 -- LuaDist source
 source = {
-  tag = "0.0.5-1",
+  tag = "0.0.6-1",
   url = "git://github.com/LuaDist-testing/oauth.git"
 }
 -- Original source
 -- source = {
--- 	url = "https://github.com/ignacio/LuaOAuth/archive/0.0.5-1.tar.gz",
--- 	dir = "LuaOAuth-0.0.5-1"
+-- 	url = "https://github.com/ignacio/LuaOAuth/archive/0.0.6-1.tar.gz",
+-- 	dir = "LuaOAuth-0.0.6-1"
 -- }
 description = {
 	summary = "Lua OAuth, an OAuth client library.",
@@ -21,7 +21,7 @@ description = {
 	homepage = "http://github.com/ignacio/LuaOAuth"
 }
 dependencies = {
-	"lua ~> 5.1",
+	"lua >= 5.1, <= 5.2",
 	"luasocket",
 	"luasec",
 	"luacrypto",
